@@ -15,10 +15,13 @@ import {
 } from '@/map/layers/boundaries';
 import { boxContains, labelBox } from './labelHit';
 import { describeAirport } from '@/map/layers/airports';
+import { setAircraftHover } from '@/map/layers/aircraft';
+import type { Aircraft } from '@/data/aircraft';
+import { formatAltitude, formatSpeed, formatVerticalRate } from '@/utils/units';
 import type { Point } from 'ol/geom';
 
 export interface HoverInfo {
-  kind: BoundaryKind | 'airport';
+  kind: BoundaryKind | 'airport' | 'aircraft';
   id: string;
   name: string;
   detail: string;
@@ -28,7 +31,7 @@ export interface HoverInfo {
   state?: 'open' | 'closed' | 'unknown';
 }
 
-type Hit = { kind: BoundaryKind; feature: Feature } | { kind: 'airport'; feature: Feature };
+type Hit = { kind: BoundaryKind | 'airport' | 'aircraft'; feature: Feature };
 
 /** Text widths per label string, measured once with the same font the canvas uses. */
 const widthCache = new Map<string, number>();
@@ -60,7 +63,10 @@ function describe(kind: BoundaryKind, f: Feature): HoverInfo {
  */
 export function attachBoundaryHover(
   map: OlMap,
-  layers: Record<BoundaryKind, VectorLayer<VectorSource>> & { airport?: VectorLayer<VectorSource> },
+  layers: Record<BoundaryKind, VectorLayer<VectorSource>> & {
+    airport?: VectorLayer<VectorSource>;
+    aircraft?: VectorLayer<VectorSource>;
+  },
   tooltipEl: HTMLElement,
   onChange: (info: HoverInfo | null) => void,
 ): () => void {
@@ -76,7 +82,15 @@ export function attachBoundaryHover(
   const order: BoundaryKind[] = ['tracon', 'fir'];
 
   function hitTest(pixel: [number, number]): Hit | null {
-    // Airport markers sit on top of everything else.
+    // Aircraft on top, then airport markers, then boundary labels.
+    if (layers.aircraft) {
+      const aircraftLayer = layers.aircraft;
+      const f = map.forEachFeatureAtPixel(pixel, (feat) => feat as Feature, {
+        layerFilter: (l) => l === aircraftLayer,
+        hitTolerance: 4,
+      });
+      if (f) return { kind: 'aircraft', feature: f };
+    }
     if (layers.airport) {
       const airportLayer = layers.airport;
       const f = map.forEachFeatureAtPixel(pixel, (feat) => feat as Feature, {
@@ -109,22 +123,41 @@ export function attachBoundaryHover(
     return null;
   }
 
-  let currentAirport: Feature | null = null;
+  let currentPoint: Feature | null = null;
+  let currentAcKey = '';
 
   function apply(hit: Hit | null) {
     const airport = hit?.kind === 'airport' ? hit.feature : null;
+    const plane = hit?.kind === 'aircraft' ? hit.feature : null;
     const boundary =
-      hit && hit.kind !== 'airport' ? { kind: hit.kind, id: hit.feature.get('id') as string } : null;
+      hit && (hit.kind === 'tracon' || hit.kind === 'fir')
+        ? { kind: hit.kind, id: hit.feature.get('id') as string }
+        : null;
     const boundaryChanged = setHovered(boundary);
     if (boundaryChanged) {
       layers.tracon.changed();
       layers.fir.changed();
     }
-    if (!boundaryChanged && airport === currentAirport) return;
-    currentAirport = airport;
+    if (setAircraftHover(plane ? (plane.getId() as string) : null)) layers.aircraft?.changed();
+    // Aircraft data refreshes under a stationary cursor: re-render the card when values change.
+    const ac = plane?.get('ac') as Aircraft | undefined;
+    const acKey = ac ? `${ac.hex}|${ac.alt}|${ac.gs}|${ac.vs}` : '';
+    const point = airport ?? plane;
+    if (!boundaryChanged && point === currentPoint && acKey === currentAcKey) return;
+    currentPoint = point;
+    currentAcKey = acKey;
 
     map.getTargetElement()?.style.setProperty('cursor', hit ? 'pointer' : '');
-    if (airport) {
+    if (plane && ac) {
+      overlay.setPosition((plane.getGeometry() as Point).getCoordinates());
+      onChange({
+        kind: 'aircraft',
+        id: ac.hex,
+        name: `${ac.callsign ?? ac.reg ?? ac.hex.toUpperCase()} · ${ac.type ?? '—'}`,
+        detail: `${formatAltitude(ac.alt)} · ${formatSpeed(ac.gs)} · ${formatVerticalRate(ac.vs)}`,
+        extra: [ac.reg, ac.squawk ? `sqk ${ac.squawk}` : null].filter(Boolean).join(' · ') || undefined,
+      });
+    } else if (airport) {
       const d = describeAirport(airport);
       overlay.setPosition((airport.getGeometry() as Point).getCoordinates());
       onChange({
@@ -135,7 +168,7 @@ export function attachBoundaryHover(
         extra: d.positions,
         state: d.state,
       });
-    } else if (hit && hit.kind !== 'airport') {
+    } else if (hit && (hit.kind === 'tracon' || hit.kind === 'fir')) {
       overlay.setPosition(labelPoint(hit.feature)?.getCoordinates());
       onChange(describe(hit.kind, hit.feature));
     } else {
@@ -157,7 +190,11 @@ export function attachBoundaryHover(
     });
   };
   // Tap support for touch screens: tap a label to highlight, tap elsewhere to clear.
-  const onClick = (e: MapBrowserEvent) => apply(hitTest([e.pixel[0]!, e.pixel[1]!]));
+  const onClick = (e: MapBrowserEvent) => {
+    const hit = hitTest([e.pixel[0]!, e.pixel[1]!]);
+    // Aircraft clicks open the card (MapView); don't leave a hover card on touch screens.
+    apply(hit?.kind === 'aircraft' ? null : hit);
+  };
   const onLeave = () => apply(null);
   // Re-anchor after pan/zoom: label pixel moves, and labels hide below the zoom threshold.
   const onMoveEnd = () => {
@@ -178,6 +215,7 @@ export function attachBoundaryHover(
     viewport?.removeEventListener('pointerleave', onLeave);
     map.removeOverlay(overlay);
     setHovered(null);
-    currentAirport = null;
+    setAircraftHover(null);
+    currentPoint = null;
   };
 }

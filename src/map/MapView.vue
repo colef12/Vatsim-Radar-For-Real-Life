@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef } from 'vue';
+import { onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import OlMap from 'ol/Map';
 import View from 'ol/View';
 import { fromLonLat, toLonLat } from 'ol/proj';
@@ -7,16 +7,25 @@ import { defaults as defaultControls, ScaleLine } from 'ol/control';
 import { createBasemap } from './basemap';
 import { createFirLayer, createTraconLayer } from './layers/boundaries';
 import { createAirportLayer } from './layers/airports';
+import { createAircraftLayer, setAircraftSelected } from './layers/aircraft';
 import { attachBoundaryHover, type HoverInfo } from './interactions/boundaryHover';
 import { useMapStore } from '@/stores/map';
+import { useTrafficStore } from '@/stores/traffic';
+import { queryForViewport, TrafficPoller } from '@/data/poller';
+import { PROXY_URL, TRAFFIC_POLL_MS } from '@/config';
+import AircraftCard from '@/components/AircraftCard.vue';
+import type Feature from 'ol/Feature';
 
 const store = useMapStore();
+const traffic = useTrafficStore();
 const el = useTemplateRef<HTMLDivElement>('mapEl');
 const tooltipEl = useTemplateRef<HTMLDivElement>('tooltipEl');
 const map = shallowRef<OlMap | null>(null);
 const hoverInfo = ref<HoverInfo | null>(null);
 let detachHover: (() => void) | null = null;
 let disposeAirports: (() => void) | null = null;
+let poller: TrafficPoller | null = null;
+let disposeAircraft: (() => void) | null = null;
 
 onMounted(() => {
   if (!el.value) return;
@@ -32,10 +41,12 @@ onMounted(() => {
   const traconLayer = createTraconLayer();
   const airports = createAirportLayer();
   disposeAirports = airports.dispose;
+  const aircraft = createAircraftLayer();
+  disposeAircraft = aircraft.dispose;
 
   map.value = new OlMap({
     target: el.value,
-    layers: [createBasemap(), firLayer, traconLayer, airports.layer],
+    layers: [createBasemap(), firLayer, traconLayer, airports.layer, aircraft.layer],
     view,
     controls: defaultControls({ rotate: false, attributionOptions: { collapsible: false } }).extend([
       new ScaleLine({ units: 'nautical' }),
@@ -45,11 +56,52 @@ onMounted(() => {
   if (tooltipEl.value) {
     detachHover = attachBoundaryHover(
       map.value,
-      { tracon: traconLayer, fir: firLayer, airport: airports.layer },
+      { tracon: traconLayer, fir: firLayer, airport: airports.layer, aircraft: aircraft.layer },
       tooltipEl.value,
       (info) => (hoverInfo.value = info),
     );
   }
+
+  // ---- live traffic ----
+  const viewportQuery = () => {
+    const size = map.value?.getSize();
+    const c = view.getCenter();
+    if (!size || !c) return null;
+    const [minX, minY, maxX, maxY] = view.calculateExtent(size) as [number, number, number, number];
+    const corners = [
+      [minX, minY],
+      [minX, maxY],
+      [maxX, minY],
+      [maxX, maxY],
+    ].map((p) => toLonLat(p) as [number, number]);
+    return queryForViewport(toLonLat(c) as [number, number], corners);
+  };
+
+  poller = new TrafficPoller(
+    PROXY_URL,
+    TRAFFIC_POLL_MS,
+    (snap) => {
+      traffic.applySnapshot(snap);
+      aircraft.update(snap.aircraft, snap.provider);
+    },
+    (status) => (traffic.status = status),
+  );
+  poller.start();
+
+  // Click an aircraft → card; click empty map → close card.
+  map.value.on('singleclick', (e) => {
+    const f = map.value?.forEachFeatureAtPixel(e.pixel, (feat) => feat as Feature, {
+      layerFilter: (l) => l === aircraft.layer,
+      hitTolerance: 4,
+    });
+    traffic.select(f ? (f.getId() as string) : null);
+  });
+  watch(
+    () => traffic.selectedHex,
+    (hex) => {
+      if (setAircraftSelected(hex)) aircraft.redraw();
+    },
+  );
 
   map.value.on('moveend', () => {
     const c = view.getCenter();
@@ -57,12 +109,18 @@ onMounted(() => {
     if (!c || z == null) return;
     const [lon, lat] = toLonLat(c) as [number, number];
     store.view = { center: [+lon.toFixed(4), +lat.toFixed(4)], zoom: +z.toFixed(2) };
+    const q = viewportQuery();
+    if (q) poller?.setViewport(q);
   });
+  const q0 = viewportQuery();
+  if (q0) poller.setViewport(q0);
 });
 
 onBeforeUnmount(() => {
   detachHover?.();
   disposeAirports?.();
+  poller?.stop();
+  disposeAircraft?.();
   map.value?.setTarget(undefined);
   map.value = null;
 });
@@ -70,6 +128,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="mapEl" class="map" />
+  <AircraftCard />
   <!-- Positioned by an OpenLayers Overlay; kept in the DOM so the Overlay can own it. -->
   <div
     ref="tooltipEl"
@@ -78,6 +137,7 @@ onBeforeUnmount(() => {
       'boundary-tip--fir': hoverInfo?.kind === 'fir',
       'boundary-tip--open': hoverInfo?.state === 'open',
       'boundary-tip--closed': hoverInfo?.state === 'closed',
+      'boundary-tip--aircraft': hoverInfo?.kind === 'aircraft',
     }"
   >
     <template v-if="hoverInfo">
@@ -114,6 +174,10 @@ onBeforeUnmount(() => {
 
   &--closed {
     border-left-color: var(--text-2);
+  }
+
+  &--aircraft {
+    border-left-color: #ffa940;
   }
 
   &__name {

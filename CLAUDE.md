@@ -56,12 +56,12 @@ Browser CORS tested from the live origin `https://colef12.github.io` on 2026-11-
 | Basemap | OpenFreeMap `dark` vector style | `https://tiles.openfreemap.org/styles/dark` via `ol-mapbox-style` | No key, no limit; © OpenMapTiles © OSM | **PASS** |
 | Basemap (dropped) | CARTO Dark Matter | raster XYZ | **Now requires API key** — tiles show watermark | FAIL |
 
-**Consequence:** every live-traffic and weather source needs a CORS proxy. Per the rule below, decision pending with Cole (Cloudflare Worker in `/proxy`).
+**Consequence:** every live-traffic and weather source goes through our Cloudflare Worker relay in `/proxy` (Cole approved 2026-11-06). Routes: `/v2/point|hex|callsign|reg`, `POST /routeset`, `/metar`, `/health`. Failover adsb.lol → airplanes.live → adsb.fi, point queries snapped 0.1°/25 nm and edge-cached 4 s, origin-locked to the Pages site + localhost. Deployed by `.github/workflows/proxy.yml` (needs repo secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`). Worker URL lives in `src/config.ts` `PROXY_URL`; empty = traffic off.
 
 Rules:
-- All v2 providers share the ADSBExchange v2 schema → **one normaliser** (`src/data/adsbV2.ts`) mapping to the internal `Aircraft` type. Provider-specific code lives only in `src/data/providers/*`.
+- All v2 providers share the ADSBExchange v2 schema → **one normaliser** (`src/data/aircraft.ts`) mapping to the internal `Aircraft` type. Provider-specific URLs live only in `proxy/src/index.ts` `PROVIDERS`.
 - Poll **viewport-driven**: centre + radius from current map extent, capped at 250 nm. Default interval 5 s, never < 2 s. Pause when tab hidden (`document.visibilityState`).
-- On 429/5xx: exponential backoff (5→10→20→60 s), then fail over to next provider. Show a source/status pill in the UI.
+- Provider failover happens in the relay. The client backs off on relay errors (5→10→20→60 s) and shows a source/status pill in the header.
 - If CORS blocks a provider: **stop and report to Cole**. Fix is a Cloudflare Worker proxy (free tier) in `/proxy`, deployed separately. Do not use public CORS proxies.
 - Never fetch from a GitHub Actions cron to "fake live" data — Actions cron minimum ~5 min and it burns Action minutes.
 
@@ -69,8 +69,8 @@ Rules:
 
 | vatsim-radar feature | Real-world equivalent | Phase |
 |---|---|---|
-| Aircraft icons by type, rotated by heading | `t` (ICAO type) → icon family; `track` → rotation | 1 |
-| Hover label / click card (callsign, type, alt, GS, route) | `flight`, `t`, `r`, `alt_baro`, `gs`, `baro_rate`, `squawk` + routeset | 1 |
+| Aircraft icons by type, rotated by heading | `t` (ICAO type) → VATSIM Radar icon (alias table + emitter-category fallback); `track` → rotation; ground traffic hidden below ≈ zoom 9; callsigns from ≈ zoom 7.4 | **Built** (live once relay deployed) |
+| Hover label / click card (callsign, type, alt, GS, route) | Hover card + click card (`src/components/AircraftCard.vue`), route via relay `POST /routeset` | **Built** (live once relay deployed) |
 | Flight track trail | Client-side ring buffer of last N positions per hex (no history API) | 2 |
 | Airport D/G/T/A badges | **US only** (Cole, 2026-11-06). Badges = positions the tower *has* per FAA FRQ (D `CD`, G `GND`, T `LCL`, A `ATIS`/`D-ATIS`; tower's own freqs only). Dimmed when the published `TWR_HRS` say closed; seasonal/NOTAM/SR-SS hours = "Hours vary", shown normal. Evaluated client-side every 60 s with the airport's IANA zone. A = **ATIS**, as in VATSIM Radar (approach is the TRACON polygon) | **Done** |
 | Airports with traffic counts | Count of aircraft within X nm below Y ft (needs live traffic) | 2 |

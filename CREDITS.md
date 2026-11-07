@@ -44,6 +44,12 @@ These are community depictions drawn for VATSIM, not FAA/ICAO source data. Verti
 - Roboto Mono — Apache License 2.0 (via Google Fonts)
 - Jura — SIL Open Font License 1.1 (via Google Fonts), badge letters
 
-## Live data (added in Phase 1+)
+## Live traffic
 
-_List each provider with its required attribution text and link when it goes live._
+Fetched through our Cloudflare Worker relay (`proxy/`); the active provider is credited on the map ("Traffic: …").
+
+- [adsb.lol](https://adsb.lol): primary. Open data, ODbL.
+- [airplanes.live](https://airplanes.live): fallback. Non-commercial use.
+- [adsb.fi](https://adsb.fi): fallback. Personal, non-commercial use; attribution + link required.
+- Routes (dep/arr): [adsb.lol routeset](https://api.adsb.lol/docs), community-sourced, may be wrong.
+- METAR (relay route ready, UI pending): [aviationweather.gov](https://aviationweather.gov) (NOAA, public domain).
