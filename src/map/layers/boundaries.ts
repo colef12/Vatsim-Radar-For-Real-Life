@@ -73,15 +73,27 @@ export function labelPoint(feature: FeatureLike): Point | undefined {
   if (lon != null && lat != null && Number.isFinite(lon) && Number.isFinite(lat)) {
     point = new Point(fromLonLat([lon, lat]));
   } else {
+    // No explicit label point (all SimAware TRACONs): put the box on the top-left vertex of the
+    // largest piece, like VATSIM Radar does — keeps it off the airport in the middle.
     const geom = feature.getGeometry();
     if (geom instanceof MultiPolygon) {
       let best = -1;
       for (const poly of geom.getPolygons()) {
         const area = poly.getArea();
-        if (area > best) {
-          best = area;
-          point = poly.getInteriorPoint();
+        if (area <= best) continue;
+        best = area;
+        const ring = poly.getLinearRing(0)?.getCoordinates() ?? [];
+        const [minX, , , maxY] = poly.getExtent();
+        let corner = ring[0];
+        let cornerDist = Infinity;
+        for (const c of ring) {
+          const dist = c[0]! - minX! + (maxY! - c[1]!);
+          if (dist < cornerDist) {
+            cornerDist = dist;
+            corner = c;
+          }
         }
+        if (corner) point = new Point(corner);
       }
     }
   }

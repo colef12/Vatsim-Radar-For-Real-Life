@@ -14,7 +14,8 @@
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "test": "vitest run",
-    "data:boundaries": "node scripts/build-boundaries.mjs"
+    "data:boundaries": "node scripts/build-boundaries.mjs",
+    "data:airports": "node scripts/build-airports.mjs"
   },
   "dependencies": {
     "ol": "^10.11.0",
@@ -24,12 +25,14 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@photostructure/tz-lookup": "^11.8.0",
     "@types/node": "^26.6.6",
     "@vitejs/plugin-vue": "^6.0.10",
     "@vue/eslint-config-prettier": "^10.2.0",
     "@vue/eslint-config-typescript": "^14.9.0",
     "eslint": "^10.14.0",
     "eslint-plugin-vue": "^10.12.0",
+    "fflate": "^0.8.3",
     "globals": "^17.14.0",
     "jsdom": "^31.0.0",
     "prettier": "^3.9.10",

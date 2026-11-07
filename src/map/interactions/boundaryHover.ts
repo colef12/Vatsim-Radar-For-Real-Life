@@ -14,13 +14,21 @@ import {
   type BoundaryKind,
 } from '@/map/layers/boundaries';
 import { boxContains, labelBox } from './labelHit';
+import { describeAirport } from '@/map/layers/airports';
+import type { Point } from 'ol/geom';
 
 export interface HoverInfo {
-  kind: BoundaryKind;
+  kind: BoundaryKind | 'airport';
   id: string;
   name: string;
   detail: string;
+  /** Airports: "Delivery · Ground · Tower · ATIS" */
+  extra?: string;
+  /** Airports: tower state, drives the card accent colour */
+  state?: 'open' | 'closed' | 'unknown';
 }
+
+type Hit = { kind: BoundaryKind; feature: Feature } | { kind: 'airport'; feature: Feature };
 
 /** Text widths per label string, measured once with the same font the canvas uses. */
 const widthCache = new Map<string, number>();
@@ -47,11 +55,12 @@ function describe(kind: BoundaryKind, f: Feature): HoverInfo {
 
 /**
  * Hover (and tap) on a boundary ID label → highlight every piece of that facility
- * and show a tooltip card above the label. Returns a cleanup function.
+ * and show a tooltip card above the label. Hovering an airport marker shows its
+ * positions and tower hours. Returns a cleanup function.
  */
 export function attachBoundaryHover(
   map: OlMap,
-  layers: Record<BoundaryKind, VectorLayer<VectorSource>>,
+  layers: Record<BoundaryKind, VectorLayer<VectorSource>> & { airport?: VectorLayer<VectorSource> },
   tooltipEl: HTMLElement,
   onChange: (info: HoverInfo | null) => void,
 ): () => void {
@@ -66,7 +75,17 @@ export function attachBoundaryHover(
   // TRACON labels sit above FIR labels, so test them first.
   const order: BoundaryKind[] = ['tracon', 'fir'];
 
-  function hitTest(pixel: [number, number]): { kind: BoundaryKind; feature: Feature } | null {
+  function hitTest(pixel: [number, number]): Hit | null {
+    // Airport markers sit on top of everything else.
+    if (layers.airport) {
+      const airportLayer = layers.airport;
+      const f = map.forEachFeatureAtPixel(pixel, (feat) => feat as Feature, {
+        layerFilter: (l) => l === airportLayer,
+        hitTolerance: 2,
+      });
+      if (f) return { kind: 'airport', feature: f };
+    }
+
     const view = map.getView();
     const resolution = view.getResolution();
     const size = map.getSize();
@@ -90,13 +109,33 @@ export function attachBoundaryHover(
     return null;
   }
 
-  function apply(hit: { kind: BoundaryKind; feature: Feature } | null) {
-    const next = hit ? { kind: hit.kind, id: hit.feature.get('id') as string } : null;
-    if (!setHovered(next)) return;
-    layers.tracon.changed();
-    layers.fir.changed();
+  let currentAirport: Feature | null = null;
+
+  function apply(hit: Hit | null) {
+    const airport = hit?.kind === 'airport' ? hit.feature : null;
+    const boundary =
+      hit && hit.kind !== 'airport' ? { kind: hit.kind, id: hit.feature.get('id') as string } : null;
+    const boundaryChanged = setHovered(boundary);
+    if (boundaryChanged) {
+      layers.tracon.changed();
+      layers.fir.changed();
+    }
+    if (!boundaryChanged && airport === currentAirport) return;
+    currentAirport = airport;
+
     map.getTargetElement()?.style.setProperty('cursor', hit ? 'pointer' : '');
-    if (hit) {
+    if (airport) {
+      const d = describeAirport(airport);
+      overlay.setPosition((airport.getGeometry() as Point).getCoordinates());
+      onChange({
+        kind: 'airport',
+        id: airport.get('id') as string,
+        name: d.name,
+        detail: d.detail,
+        extra: d.positions,
+        state: d.state,
+      });
+    } else if (hit && hit.kind !== 'airport') {
       overlay.setPosition(labelPoint(hit.feature)?.getCoordinates());
       onChange(describe(hit.kind, hit.feature));
     } else {
@@ -139,5 +178,6 @@ export function attachBoundaryHover(
     viewport?.removeEventListener('pointerleave', onLeave);
     map.removeOverlay(overlay);
     setHovered(null);
+    currentAirport = null;
   };
 }

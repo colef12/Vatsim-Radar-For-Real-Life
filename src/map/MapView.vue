@@ -6,6 +6,7 @@ import { fromLonLat, toLonLat } from 'ol/proj';
 import { defaults as defaultControls, ScaleLine } from 'ol/control';
 import { createBasemap } from './basemap';
 import { createFirLayer, createTraconLayer } from './layers/boundaries';
+import { createAirportLayer } from './layers/airports';
 import { attachBoundaryHover, type HoverInfo } from './interactions/boundaryHover';
 import { useMapStore } from '@/stores/map';
 
@@ -15,6 +16,7 @@ const tooltipEl = useTemplateRef<HTMLDivElement>('tooltipEl');
 const map = shallowRef<OlMap | null>(null);
 const hoverInfo = ref<HoverInfo | null>(null);
 let detachHover: (() => void) | null = null;
+let disposeAirports: (() => void) | null = null;
 
 onMounted(() => {
   if (!el.value) return;
@@ -28,10 +30,12 @@ onMounted(() => {
 
   const firLayer = createFirLayer();
   const traconLayer = createTraconLayer();
+  const airports = createAirportLayer();
+  disposeAirports = airports.dispose;
 
   map.value = new OlMap({
     target: el.value,
-    layers: [createBasemap(), firLayer, traconLayer],
+    layers: [createBasemap(), firLayer, traconLayer, airports.layer],
     view,
     controls: defaultControls({ rotate: false, attributionOptions: { collapsible: false } }).extend([
       new ScaleLine({ units: 'nautical' }),
@@ -41,7 +45,7 @@ onMounted(() => {
   if (tooltipEl.value) {
     detachHover = attachBoundaryHover(
       map.value,
-      { tracon: traconLayer, fir: firLayer },
+      { tracon: traconLayer, fir: firLayer, airport: airports.layer },
       tooltipEl.value,
       (info) => (hoverInfo.value = info),
     );
@@ -58,6 +62,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   detachHover?.();
+  disposeAirports?.();
   map.value?.setTarget(undefined);
   map.value = null;
 });
@@ -66,10 +71,19 @@ onBeforeUnmount(() => {
 <template>
   <div ref="mapEl" class="map" />
   <!-- Positioned by an OpenLayers Overlay; kept in the DOM so the Overlay can own it. -->
-  <div ref="tooltipEl" class="boundary-tip" :class="{ 'boundary-tip--fir': hoverInfo?.kind === 'fir' }">
+  <div
+    ref="tooltipEl"
+    class="boundary-tip"
+    :class="{
+      'boundary-tip--fir': hoverInfo?.kind === 'fir',
+      'boundary-tip--open': hoverInfo?.state === 'open',
+      'boundary-tip--closed': hoverInfo?.state === 'closed',
+    }"
+  >
     <template v-if="hoverInfo">
       <div class="boundary-tip__name">{{ hoverInfo.name }}</div>
       <div class="boundary-tip__detail">{{ hoverInfo.detail }}</div>
+      <div v-if="hoverInfo.extra" class="boundary-tip__detail">{{ hoverInfo.extra }}</div>
     </template>
   </div>
 </template>
@@ -91,6 +105,14 @@ onBeforeUnmount(() => {
   }
 
   &--fir {
+    border-left-color: var(--text-2);
+  }
+
+  &--open {
+    border-left-color: #4a9c25;
+  }
+
+  &--closed {
     border-left-color: var(--text-2);
   }
 

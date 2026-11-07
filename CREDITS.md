@@ -9,10 +9,12 @@ This project is non-commercial. It must stay that way: see the licenses below.
 - License: [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/)
 - **Changes made:** adapted to plain Vite + Vue (no Nuxt/Nitro backend), data source replaced with real-world ADS-B feeds, VATSIM-specific features removed.
 
-| Adapted item                  | Upstream file             | Our file                     |
-| ----------------------------- | ------------------------- | ---------------------------- |
-| Colour palette                | `app/utils/colors.ts`     | `src/styles/_colors.scss`    |
-| Theme variables & breakpoints | `app/scss/variables.scss` | `src/styles/_variables.scss` |
+| Adapted item                     | Upstream file                                                                               | Our file                                                          |
+| -------------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Colour palette                   | `app/utils/colors.ts`                                                                       | `src/styles/_colors.scss`                                         |
+| Theme variables & breakpoints    | `app/scss/variables.scss`                                                                   | `src/styles/_variables.scss`                                      |
+| D/G/T/A badge colours and layout | `public/icons/atc/{D,G,T,A}.png`, `app/composables/render/airports/layers/airport-style.ts` | `src/map/layers/airports.ts` (redrawn on canvas, colours sampled) |
+| TRACON label on top-left vertex  | airport/approach rendering                                                                  | `src/map/layers/boundaries.ts` `labelPoint()`                     |
 
 _Add a row every time something else is ported (icons, components, logic)._
 
@@ -31,10 +33,16 @@ Built by `scripts/build-boundaries.mjs` into `public/data/` (coordinates rounded
 
 These are community depictions drawn for VATSIM, not FAA/ICAO source data. Vertical limits are not included.
 
+## US towered airports
+
+- Airport positions, tower frequencies (D/G/T/A) and tower hours: [FAA NASR 28-Day Subscription](https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/) (`ATC_BASE`, `ATC_ATIS`, `FRQ`, `APT_BASE` CSVs). US Government work, public domain. Built by `scripts/build-airports.mjs`.
+- Time zones: [@photostructure/tz-lookup](https://github.com/photostructure/tz-lookup) (CC0), build time only.
+
 ## Fonts
 
 - Libre Franklin — SIL Open Font License 1.1 (via Google Fonts)
 - Roboto Mono — Apache License 2.0 (via Google Fonts)
+- Jura — SIL Open Font License 1.1 (via Google Fonts), badge letters
 
 ## Live data (added in Phase 1+)
 
