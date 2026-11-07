@@ -1,16 +1,20 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, shallowRef, useTemplateRef } from 'vue';
+import { onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef } from 'vue';
 import OlMap from 'ol/Map';
 import View from 'ol/View';
 import { fromLonLat, toLonLat } from 'ol/proj';
 import { defaults as defaultControls, ScaleLine } from 'ol/control';
 import { createBasemap } from './basemap';
 import { createFirLayer, createTraconLayer } from './layers/boundaries';
+import { attachBoundaryHover, type HoverInfo } from './interactions/boundaryHover';
 import { useMapStore } from '@/stores/map';
 
 const store = useMapStore();
 const el = useTemplateRef<HTMLDivElement>('mapEl');
+const tooltipEl = useTemplateRef<HTMLDivElement>('tooltipEl');
 const map = shallowRef<OlMap | null>(null);
+const hoverInfo = ref<HoverInfo | null>(null);
+let detachHover: (() => void) | null = null;
 
 onMounted(() => {
   if (!el.value) return;
@@ -22,14 +26,26 @@ onMounted(() => {
     enableRotation: false,
   });
 
+  const firLayer = createFirLayer();
+  const traconLayer = createTraconLayer();
+
   map.value = new OlMap({
     target: el.value,
-    layers: [createBasemap(), createFirLayer(), createTraconLayer()],
+    layers: [createBasemap(), firLayer, traconLayer],
     view,
     controls: defaultControls({ rotate: false, attributionOptions: { collapsible: false } }).extend([
       new ScaleLine({ units: 'nautical' }),
     ]),
   });
+
+  if (tooltipEl.value) {
+    detachHover = attachBoundaryHover(
+      map.value,
+      { tracon: traconLayer, fir: firLayer },
+      tooltipEl.value,
+      (info) => (hoverInfo.value = info),
+    );
+  }
 
   map.value.on('moveend', () => {
     const c = view.getCenter();
@@ -41,6 +57,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  detachHover?.();
   map.value?.setTarget(undefined);
   map.value = null;
 });
@@ -48,9 +65,49 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="mapEl" class="map" />
+  <!-- Positioned by an OpenLayers Overlay; kept in the DOM so the Overlay can own it. -->
+  <div ref="tooltipEl" class="boundary-tip" :class="{ 'boundary-tip--fir': hoverInfo?.kind === 'fir' }">
+    <template v-if="hoverInfo">
+      <div class="boundary-tip__name">{{ hoverInfo.name }}</div>
+      <div class="boundary-tip__detail">{{ hoverInfo.detail }}</div>
+    </template>
+  </div>
 </template>
 
 <style scoped lang="scss">
+.boundary-tip {
+  pointer-events: none;
+  min-width: 140px;
+  padding: 8px 10px;
+  border: 1px solid var(--stroke);
+  border-left: 3px solid var(--brand);
+  border-radius: 8px;
+  background: var(--bg-2);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 45%);
+  white-space: nowrap;
+
+  &:empty {
+    display: none;
+  }
+
+  &--fir {
+    border-left-color: var(--text-2);
+  }
+
+  &__name {
+    color: var(--text-1);
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  &__detail {
+    margin-top: 2px;
+    color: var(--text-2);
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+}
+
 .map {
   position: absolute;
   inset: 0;
