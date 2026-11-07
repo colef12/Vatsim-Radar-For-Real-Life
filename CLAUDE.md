@@ -56,7 +56,7 @@ Browser CORS tested from the live origin `https://colef12.github.io` on 2026-11-
 | Basemap | OpenFreeMap `dark` vector style | `https://tiles.openfreemap.org/styles/dark` via `ol-mapbox-style` | No key, no limit; © OpenMapTiles © OSM | **PASS** |
 | Basemap (dropped) | CARTO Dark Matter | raster XYZ | **Now requires API key** — tiles show watermark | FAIL |
 
-**Consequence:** every live-traffic and weather source goes through our Cloudflare Worker relay in `/proxy` (Cole approved 2026-11-06). Routes: `/v2/point|hex|callsign|reg`, `POST /routeset`, `/metar`, `/health`. Failover adsb.lol → airplanes.live → adsb.fi, point queries snapped 0.1°/25 nm and edge-cached 4 s, origin-locked to the Pages site + localhost. Deployed by `.github/workflows/proxy.yml` (needs repo secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`). Worker URL lives in `src/config.ts` `PROXY_URL`; empty = traffic off.
+**Consequence:** every live-traffic and weather source goes through our Cloudflare Worker relay in `/proxy` (Cole approved 2026-11-06). Routes: `/v2/point|hex|callsign|reg`, `POST /routeset`, `/metar`, `/health`. Failover adsb.lol → airplanes.live → adsb.fi, point queries snapped 0.1°/25 nm and edge-cached 4 s, origin-locked to the Pages site + localhost. Deployed by `.github/workflows/proxy.yml` (needs repo secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`). Worker URL `https://rwr-proxy.coleferraro.workers.dev` lives in `src/config.ts` `PROXY_URL`; empty = traffic off.
 
 Rules:
 - All v2 providers share the ADSBExchange v2 schema → **one normaliser** (`src/data/aircraft.ts`) mapping to the internal `Aircraft` type. Provider-specific URLs live only in `proxy/src/index.ts` `PROVIDERS`.
