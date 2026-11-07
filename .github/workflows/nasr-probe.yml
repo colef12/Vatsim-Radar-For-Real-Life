@@ -2,38 +2,16 @@ name: NASR probe (temporary)
 on:
   push:
     branches: [scratch/nasr-probe]
+permissions:
+  contents: write
 jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - run: |
-          c=29_Oct_2026
-          for z in ATC FRQ APT; do curl -fsSL -o $z.zip "https://nfdc.faa.gov/webContent/28DaySub/extra/${c}_${z}_CSV.zip"; mkdir $z; unzip -o -q $z.zip -d $z; done
-          echo "=== ATC structure"; cat ATC/ATC_CSV_DATA_STRUCTURE.csv
-          echo "=== FRQ structure"; cat FRQ/FRQ_CSV_DATA_STRUCTURE.csv
-          for f in ATC/ATC_BASE.csv ATC/ATC_SVC.csv FRQ/FRQ.csv; do echo "=== $f ($(wc -l < $f) lines)"; head -1 $f; grep -E ',"?(SLC|CLT|TYS|PVU|AGS|A80|ATL)"?,' $f | head -14; done
-          echo "=== APT_BASE"; head -1 APT/APT_BASE.csv; grep -E ',"?(SLC|PVU|TYS)"?,' APT/APT_BASE.csv | head -3
-      - run: |
-          python3 <<'PY'
-          import csv,collections,re
-          rows=list(csv.DictReader(open('FRQ/FRQ.csv',encoding='latin-1')))
-          tw=[r for r in rows if r['FACILITY_TYPE'].startswith('ATCT') or r['FACILITY_TYPE'] in ('TRACON',)]
-          tok=collections.Counter()
-          for r in tw:
-            for t in re.split(r'[ ;,]+', r['FREQ_USE'].upper()):
-              if t: tok[t]+=1
-          print('FREQ_USE tokens (ATCT*/TRACON):', tok.most_common(70))
-          for apt in ['SLC','PVU','CLT','TYS','PDK','HSV']:
-            print('---', apt)
-            for r in rows:
-              if r['SERVICED_FACILITY']==apt and (r['FACILITY_TYPE'].startswith('ATCT') or r['FACILITY_TYPE']=='TRACON'):
-                print('  ', r['FACILITY'], r['FACILITY_TYPE'], '|', r['TOWER_HRS'], '|', r['FREQ'], '|', r['SECTORIZATION'], '|', r['FREQ_USE'])
-          base=list(csv.DictReader(open('ATC/ATC_BASE.csv',encoding='latin-1')))
-          for apt in ['SLC','PVU','CLT','TYS','PDK','HSV','OGD']:
-            for r in base:
-              if r['FACILITY_ID']==apt: print('BASE',apt,{k:r[k] for k in ['FACILITY_TYPE','ICAO_ID','TWR_OPERATOR_CODE','TWR_CALL','TWR_HRS','PRIMARY_APCH_RADIO_CALL','APCH_P_PROVIDER','APCH_P_PROV_TYPE_CD','CTL_PRVDING_HRS']})
-          hrs=collections.Counter(r['TWR_HRS'] for r in base if r['FACILITY_TYPE'].startswith('ATCT'))
-          print('TWR_HRS top:', hrs.most_common(25))
-          print('ATCT count by country:', collections.Counter(r['COUNTRY_CODE'] for r in base if r['FACILITY_TYPE'].startswith('ATCT')))
-          print('ATCT with ICAO:', sum(1 for r in base if r['FACILITY_TYPE'].startswith('ATCT') and r['ICAO_ID']))
-          PY
+          mkdir -p nasr-sample
+          for z in ATC FRQ; do curl -fsSL -o nasr-sample/29_Oct_2026_${z}_CSV.zip "https://nfdc.faa.gov/webContent/28DaySub/extra/29_Oct_2026_${z}_CSV.zip"; done
+          ls -la nasr-sample
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add nasr-sample && git commit -m "temp: NASR sample zips [skip ci]" && git push
