@@ -1,0 +1,41 @@
+@use './variables' as *;
+
+:root {
+  --bg-1: #{$backgroundLevel1};
+  --bg-2: #{$backgroundLevel2};
+  --bg-3: #{$backgroundLevel3};
+  --text-1: #{$typographyPrimary};
+  --text-2: #{$typographySecondary};
+  --brand: #{$brandPrimary};
+  --stroke: #{$strokeDefault};
+  --error: #{$errorPrimary};
+  --warning: #{$warningPrimary};
+  --success: #{$successPrimary};
+  --font: #{$defaultFont};
+  --font-mono: #{$monoFont};
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg-1);
+  color: var(--text-1);
+  font-family: var(--font);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--brand);
+}
