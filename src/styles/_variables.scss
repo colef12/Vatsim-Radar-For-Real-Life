@@ -1,0 +1,36 @@
+// Structure adapted from VATSIM Radar (app/scss/variables.scss, commit 41130e1), CC BY-NC 4.0.
+@use './colors' as *;
+
+$defaultFont: 'Libre Franklin', Arial, sans-serif;
+$monoFont: 'Roboto Mono', ui-monospace, monospace;
+
+$typographyPrimary: $lightGray200;
+$typographySecondary: $lightGray900;
+$brandPrimary: $blue400;
+$strokeDefault: $darkGray400;
+
+$backgroundLevel1: $darkGray900;
+$backgroundLevel2: $darkGray800;
+$backgroundLevel3: $darkGray700;
+
+$errorPrimary: $red500;
+$warningPrimary: $orange300;
+$successPrimary: $green500;
+
+@mixin mobile() {
+  @media all and (max-width: 1365px) {
+    @content;
+  }
+}
+
+@mixin mobileOnly() {
+  @media all and ((max-width: 699px) or ((max-width: 1365px) and (max-height: 500px))) {
+    @content;
+  }
+}
+
+@mixin pc() {
+  @media all and (min-width: 1466px) {
+    @content;
+  }
+}
