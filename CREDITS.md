@@ -22,6 +22,15 @@ _Add a row every time something else is ported (icons, components, logic)._
 - Vector style rendering: [ol-mapbox-style](https://github.com/openlayers/ol-mapbox-style) (BSD-2-Clause)
 - Map library: [OpenLayers](https://openlayers.org/) (BSD-2-Clause)
 
+## Airspace boundaries
+
+Built by `scripts/build-boundaries.mjs` into `public/data/` (coordinates rounded to 4 dp, TWR/CTR and duplicate variant polygons removed). Modified data stays under CC BY-SA 4.0.
+
+- TRACON / approach areas: [SimAware TRACON Project](https://github.com/vatsimnetwork/simaware-tracon-project) — VATSIM community, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
+- ARTCC / FIR areas: [VATSpy Data Project](https://github.com/vatsimnetwork/vatspy-data-project) — VATSIM community, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
+
+These are community depictions drawn for VATSIM, not FAA/ICAO source data. Vertical limits are not included.
+
 ## Fonts
 
 - Libre Franklin — SIL Open Font License 1.1 (via Google Fonts)

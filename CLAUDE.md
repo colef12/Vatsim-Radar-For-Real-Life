@@ -49,7 +49,8 @@ Browser CORS tested from the live origin `https://colef12.github.io` on 2026-11-
 | Live traffic (avoid) | OpenSky | `/api/states/all` | 400 credits/day anon; auth = OAuth2 secret → violates C2 | **FAIL** |
 | Routes (dep/arr) | adsb.lol routeset | `POST /api/0/routeset` | Same as adsb.lol | **FAIL** (preflight) |
 | Airports | OurAirports CSV | Pre-processed at **build time** into `public/data/airports.json` | Public domain | N/A (build time) |
-| FIR/ARTCC boundaries | VATSpy data project | Build-time GeoJSON | CC BY-SA 4.0 (attribute) | N/A (build time) |
+| TRACON boundaries | SimAware TRACON Project (`vatsimnetwork/simaware-tracon-project`, latest release asset `TRACONBoundaries.geojson`) | Build-time → `public/data/tracons.geojson` (302 kB gz) | CC BY-SA 4.0 (attribute; derived data stays BY-SA) | N/A (build time) — **LIVE** |
+| FIR/ARTCC boundaries | VATSpy Data Project (`vatsimnetwork/vatspy-data-project`, `Boundaries.geojson` @ master) | Build-time → `public/data/firs.geojson` (239 kB gz) | CC BY-SA 4.0 (attribute; derived data stays BY-SA) | N/A (build time) — **LIVE** |
 | Weather (METAR/TAF) | aviationweather.gov Data API | `/api/data/metar?ids=...&format=json` | — | **FAIL** |
 | Aircraft photos | planespotters.net public API | `https://api.planespotters.net/pub/photos/hex/{hex}` | Photographer credit + link mandatory | **PASS** |
 | Basemap | OpenFreeMap `dark` vector style | `https://tiles.openfreemap.org/styles/dark` via `ol-mapbox-style` | No key, no limit; © OpenMapTiles © OSM | **PASS** |
@@ -72,7 +73,7 @@ Rules:
 | Hover label / click card (callsign, type, alt, GS, route) | `flight`, `t`, `r`, `alt_baro`, `gs`, `baro_rate`, `squawk` + routeset | 1 |
 | Flight track trail | Client-side ring buffer of last N positions per hex (no history API) | 2 |
 | Airports with traffic counts | OurAirports + count of aircraft within X nm below Y ft | 2 |
-| ATC controllers / sector fills | **No public real-world equivalent.** Show ARTCC/FIR boundaries only; never imply staffing | 3 |
+| ATC controllers / sector fills | **No public real-world equivalent.** All TRACON + ARTCC/FIR outlines drawn **always**, one neutral style each, never imply staffing (Cole, 2026-11-06). Built weekly by `scripts/build-boundaries.mjs`; TWR/CTR variants and duplicate DEP/APP variants dropped; one label per facility (largest piece) | **Done** (pulled forward from 3) |
 | METAR on airport click | aviationweather.gov | 3 |
 | Search (callsign/reg/hex/airport) | Local filter over current set + `/v2/callsign/`, `/v2/reg/`, `/v2/hex/` | 2 |
 | Filters (altitude, type, airline, ground/air) | Client-side | 2 |
