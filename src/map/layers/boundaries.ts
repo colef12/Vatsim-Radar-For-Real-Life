@@ -8,26 +8,29 @@ import type { FeatureLike } from 'ol/Feature';
 import type { Geometry } from 'ol/geom';
 
 /**
- * TRACON (SimAware) and ARTCC/FIR (VATSpy) outlines. Always visible, never imply staffing:
- * one neutral style per type, no "active" colouring. Data built by scripts/build-boundaries.mjs.
+ * TRACON (SimAware) and ARTCC/FIR (VATSpy) outlines, always visible. Colours match VATSIM Radar's
+ * CTR (green700) and APP (citrus600) styles (Cole, 2026-11-07); here they mark facility type only,
+ * not staffing — every facility gets the same style. Data built by scripts/build-boundaries.mjs.
  */
 
 const DATA_URL = (file: string) => `${import.meta.env.BASE_URL}data/${file}`;
 
-// Colours from src/styles/_colors.scss (canvas styles can't read SCSS vars).
+// Values from VATSIM Radar app/utils/colors.ts + render/sectors/style.ts + airports/layers/airport-style.ts.
+const FIR_RGB = '59, 126, 28'; // green700 #3B7E1C
+const TRACON_RGB = '238, 121, 1'; // citrus600 #EE7901
 const C = {
-  firStroke: 'rgba(151, 151, 157, 0.30)', // lightGray900 @ 30%
-  firLabel: '#97979d',
-  traconStroke: 'rgba(89, 135, 255, 0.75)', // blue400
-  traconFill: 'rgba(89, 135, 255, 0.05)',
-  traconLabel: '#5987ff',
-  labelBg: 'rgba(24, 24, 27, 0.85)', // darkGray800
-  // Hover highlight — brand blue, not VATSIM Radar's red/green (those mean "staffed").
-  traconHoverStroke: '#5987ff',
-  traconHoverFill: 'rgba(89, 135, 255, 0.28)',
-  firHoverStroke: 'rgba(242, 242, 247, 0.75)', // lightGray200
-  firHoverFill: 'rgba(151, 151, 157, 0.14)',
-  hoverLabelText: '#ffffff',
+  firStroke: `rgba(${FIR_RGB}, 0.5)`,
+  firFill: `rgba(${FIR_RGB}, 0.07)`,
+  firLabel: '#e0e0e0', // lightGray500
+  firLabelBorder: `rgb(${FIR_RGB})`,
+  traconStroke: `rgba(${TRACON_RGB}, 0.7)`,
+  traconLabel: `rgb(${TRACON_RGB})`,
+  labelBg: '#1a1a1a', // darkGray900
+  traconHoverStroke: `rgb(${TRACON_RGB})`,
+  traconHoverFill: `rgba(${TRACON_RGB}, 0.25)`,
+  firHoverStroke: `rgba(${FIR_RGB}, 0.6)`,
+  firHoverFill: `rgba(${FIR_RGB}, 0.2)`,
+  hoverLabelText: '#f2f2f7', // lightGray200
 };
 
 /** Which layer a boundary belongs to. */
@@ -101,15 +104,22 @@ export function labelPoint(feature: FeatureLike): Point | undefined {
   return point;
 }
 
-function labelStyle(text: string, color: string, zIndex: number, active = false): Style {
+function labelStyle(
+  text: string,
+  color: string,
+  zIndex: number,
+  active = false,
+  border = color,
+  borderWidth = 1,
+): Style {
   return new Style({
     geometry: (f) => labelPoint(f) as Geometry,
     text: new Text({
       text,
       font: LABEL_FONT,
       fill: new Fill({ color: active ? C.hoverLabelText : color }),
-      backgroundFill: new Fill({ color: active ? color : C.labelBg }),
-      backgroundStroke: new Stroke({ color, width: 1 }),
+      backgroundFill: new Fill({ color: active ? border : C.labelBg }),
+      backgroundStroke: new Stroke({ color: border, width: borderWidth, lineJoin: 'round' }),
       padding: [...LABEL_PADDING],
       overflow: true,
     }),
@@ -119,18 +129,32 @@ function labelStyle(text: string, color: string, zIndex: number, active = false)
 }
 
 /** Cache keyed by `${id}|${active}` so styles are built once per facility/state. */
-function cachedLabel(cache: Map<string, Style>, id: string, color: string, zIndex: number, active: boolean) {
+function cachedLabel(
+  cache: Map<string, Style>,
+  id: string,
+  color: string,
+  zIndex: number,
+  active: boolean,
+  border = color,
+  borderWidth = 1,
+) {
   const key = `${id}|${active ? 1 : 0}`;
   let s = cache.get(key);
-  if (!s) cache.set(key, (s = labelStyle(id, color, zIndex, active)));
+  if (!s) cache.set(key, (s = labelStyle(id, color, zIndex, active, border, borderWidth)));
   return s;
 }
 
 // ---------- FIR / ARTCC ----------
-const firLine = new Style({ stroke: new Stroke({ color: C.firStroke, width: 1 }) });
-const firLineOceanic = new Style({ stroke: new Stroke({ color: C.firStroke, width: 1, lineDash: [6, 4] }) });
+const firLine = new Style({
+  stroke: new Stroke({ color: C.firStroke, width: 1, lineJoin: 'round' }),
+  fill: new Fill({ color: C.firFill }),
+});
+const firLineOceanic = new Style({
+  stroke: new Stroke({ color: C.firStroke, width: 1, lineDash: [8, 5], lineJoin: 'round' }),
+  fill: new Fill({ color: C.firFill }),
+});
 const firHover = new Style({
-  stroke: new Stroke({ color: C.firHoverStroke, width: 1.5 }),
+  stroke: new Stroke({ color: C.firHoverStroke, width: 1, lineJoin: 'round' }),
   fill: new Fill({ color: C.firHoverFill }),
   zIndex: 5,
 });
@@ -142,18 +166,19 @@ function firStyle(feature: FeatureLike, resolution: number): Style[] {
   const styles = [active ? firHover : feature.get('oceanic') ? firLineOceanic : firLine];
   // Labels from roughly zoom 4.5 so the world view isn't a wall of text.
   if (feature.get('primary') && resolution < LABEL_MAX_RESOLUTION.fir) {
-    styles.push(cachedLabel(firLabelCache, id, active ? C.firHoverStroke : C.firLabel, 1, active));
+    styles.push(cachedLabel(firLabelCache, id, C.firLabel, 1, active, C.firLabelBorder));
   }
   return styles;
 }
 
 // ---------- TRACON ----------
 const traconArea = new Style({
-  stroke: new Stroke({ color: C.traconStroke, width: 1.25 }),
-  fill: new Fill({ color: C.traconFill }),
+  stroke: new Stroke({ color: C.traconStroke, width: 2, lineJoin: 'round' }),
+  // Transparent fill keeps the interior hit-testable for hover.
+  fill: new Fill({ color: 'rgba(0, 0, 0, 0)' }),
 });
 const traconHover = new Style({
-  stroke: new Stroke({ color: C.traconHoverStroke, width: 2 }),
+  stroke: new Stroke({ color: C.traconHoverStroke, width: 2, lineJoin: 'round' }),
   fill: new Fill({ color: C.traconHoverFill }),
   zIndex: 5,
 });
@@ -165,7 +190,7 @@ function traconStyle(feature: FeatureLike, resolution: number): Style[] {
   const styles = [active ? traconHover : traconArea];
   // Labels from roughly zoom 5.5.
   if (feature.get('primary') && resolution < LABEL_MAX_RESOLUTION.tracon) {
-    styles.push(cachedLabel(traconLabelCache, id, C.traconLabel, 2, active));
+    styles.push(cachedLabel(traconLabelCache, id, C.traconLabel, 2, active, C.traconLabel, 2));
   }
   return styles;
 }
