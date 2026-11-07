@@ -47,7 +47,8 @@ Browser CORS tested from the live origin `https://colef12.github.io` on 2026-11-
 | Live traffic (fallback 2) | adsb.fi | `https://opendata.adsb.fi/api/v2/lat/{lat}/lon/{lon}/dist/{nm}` | 1 req/s, non-commercial, attribution + link required | **FAIL** |
 | Live traffic | ADSB One | `https://api.adsb.one/v2/point/...` | 1 req/s; repo archived Apr 2026 | **FAIL** |
 | Live traffic (avoid) | OpenSky | `/api/states/all` | 400 credits/day anon; auth = OAuth2 secret → violates C2 | **FAIL** |
-| Routes (dep/arr) | adsb.lol routeset | `POST /api/0/routeset` | Same as adsb.lol | **FAIL** (preflight) |
+| Routes (dep/arr) — **in use** | adsbdb.com | `https://api.adsbdb.com/v0/callsign/{CS}` → origin/midpoint/destination ICAO + airline | Free; credit adsbdb | **PASS** (direct from browser, 2026-11-06) |
+| Routes (dep/arr) — unused | adsb.lol routeset | `POST /api/0/routeset` | Same as adsb.lol | **FAIL** (preflight); via relay returns non-JSON 2026-11-06 |
 | US towered airports (D/G/T/A + tower hours) | FAA NASR 28-day CSV (`nfdc.faa.gov/webContent/28DaySub/extra/{DD_Mon_YYYY}_{ATC,FRQ,APT}_CSV.zip`) | Build-time → `public/data/airports-us.json` (35 kB gz, 718 airports). **Not reachable from Claude's sandbox**, reachable from GitHub Actions | Public domain (US Gov) | N/A (build time) — **LIVE** |
 | TRACON boundaries | SimAware TRACON Project (`vatsimnetwork/simaware-tracon-project`, latest release asset `TRACONBoundaries.geojson`) | Build-time → `public/data/tracons.geojson` (302 kB gz) | CC BY-SA 4.0 (attribute; derived data stays BY-SA) | N/A (build time) — **LIVE** |
 | FIR/ARTCC boundaries | VATSpy Data Project (`vatsimnetwork/vatspy-data-project`, `Boundaries.geojson` @ master) | Build-time → `public/data/firs.geojson` (239 kB gz) | CC BY-SA 4.0 (attribute; derived data stays BY-SA) | N/A (build time) — **LIVE** |
@@ -69,8 +70,8 @@ Rules:
 
 | vatsim-radar feature | Real-world equivalent | Phase |
 |---|---|---|
-| Aircraft icons by type, rotated by heading | `t` (ICAO type) → VATSIM Radar icon (alias table + emitter-category fallback); `track` → rotation; ground traffic hidden below ≈ zoom 9; callsigns from ≈ zoom 7.4 | **Built** (live once relay deployed) |
-| Hover label / click card (callsign, type, alt, GS, route) | Hover card + click card (`src/components/AircraftCard.vue`), route via relay `POST /routeset` | **Built** (live once relay deployed) |
+| Aircraft icons by type, rotated by heading | `t` (ICAO type) → VATSIM Radar icon (alias table + emitter-category fallback); `track` → rotation; ground traffic hidden below ≈ zoom 9; callsigns from ≈ zoom 7.4 | **Live** (relay deployed 2026-11-06) |
+| Hover label / click card (callsign, type, alt, GS, route) | Hover card + click card (`src/components/AircraftCard.vue`), route + airline from adsbdb.com (direct, CORS OK) | **Live** |
 | Flight track trail | Client-side ring buffer of last N positions per hex (no history API) | 2 |
 | Airport D/G/T/A badges | **US only** (Cole, 2026-11-06). Badges = positions the tower *has* per FAA FRQ (D `CD`, G `GND`, T `LCL`, A `ATIS`/`D-ATIS`; tower's own freqs only). Dimmed when the published `TWR_HRS` say closed; seasonal/NOTAM/SR-SS hours = "Hours vary", shown normal. Evaluated client-side every 60 s with the airport's IANA zone. A = **ATIS**, as in VATSIM Radar (approach is the TRACON polygon) | **Done** |
 | Airports with traffic counts | Count of aircraft within X nm below Y ft (needs live traffic) | 2 |

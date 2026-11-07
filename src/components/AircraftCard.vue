@@ -50,11 +50,9 @@ const rows = computed(() => {
     <div v-if="a.emergency" class="card__alert">EMERGENCY · SQUAWK {{ a.squawk ?? '—' }}</div>
 
     <div class="card__route">
-      <template v-if="route?.airports">
-        {{ route.airports.replace('-', ' → ') }}
-        <span v-if="route.plausible === false" class="card__muted">(route not confirmed)</span>
-      </template>
-      <span v-else class="card__muted">Route unknown</span>
+      <template v-if="route?.airports">{{ route.airports.join(' → ') }}</template>
+      <span v-else class="card__muted">{{ route ? 'Route unknown' : 'Looking up route…' }}</span>
+      <div v-if="route?.airline" class="card__airline">{{ route.airline }}</div>
     </div>
 
     <dl class="card__grid">
@@ -141,6 +139,13 @@ const rows = computed(() => {
     background: var(--bg-3);
     font-family: var(--font-mono);
     font-size: 13px;
+  }
+
+  &__airline {
+    margin-top: 2px;
+    color: var(--text-2);
+    font-family: var(--font);
+    font-size: 11px;
   }
 
   &__grid {
