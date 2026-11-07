@@ -38,20 +38,24 @@ No Nuxt: SSR/Nitro features are useless on Pages and add config surface.
 
 ## 4. Data sources
 
-Status column: **UNVERIFIED** until browser CORS + response checked in Phase 0. Update this table when verified.
+Browser CORS tested from the live origin `https://colef12.github.io` on 2026-11-06 (built-in browser, `fetch()` from the page).
 
-| Purpose | Source | Endpoint pattern | Limit | Status |
+| Purpose | Source | Endpoint pattern | Limit | Browser CORS |
 |---|---|---|---|---|
-| Live traffic (primary) | adsb.lol | `https://api.adsb.lol/v2/point/{lat}/{lon}/{nm}` | Dynamic; no key today, key announced for future | UNVERIFIED |
-| Live traffic (fallback) | airplanes.live | `https://api.airplanes.live/v2/point/{lat}/{lon}/{nm}` (≤250 nm) | 1 req/s, non-commercial | UNVERIFIED |
-| Live traffic (fallback 2) | adsb.fi | `https://opendata.adsb.fi/api/v2/lat/{lat}/lon/{lon}/dist/{nm}` | 1 req/s, non-commercial, attribution + link required | UNVERIFIED |
-| Live traffic (avoid) | OpenSky | `/api/states/all` | 400 credits/day anon; auth is OAuth2 client-credentials = secret → violates C2 | REJECTED for client |
-| Routes (dep/arr) | adsb.lol routeset | `POST /api/0/routeset` | Same as above | UNVERIFIED |
-| Airports | OurAirports CSV | Pre-processed at **build time** into `public/data/airports.json` | Public domain | — |
-| FIR/ARTCC boundaries | VATSpy data project | Build-time GeoJSON | CC BY-SA 4.0 (attribute) | — |
-| Weather (METAR/TAF) | aviationweather.gov Data API | `/api/data/metar?ids=...` | Check CORS | UNVERIFIED |
-| Aircraft photos | planespotters.net public API | `/pub/photos/hex/{hex}` | Photographer credit + link mandatory | UNVERIFIED |
-| Basemap | CARTO dark / OSM | Raster XYZ | Attribution required | — |
+| Live traffic (primary) | adsb.lol | `https://api.adsb.lol/v2/point/{lat}/{lon}/{nm}` | Dynamic; no key today, key announced for future | **FAIL** (no ACAO header) |
+| Live traffic (fallback) | airplanes.live | `https://api.airplanes.live/v2/point/{lat}/{lon}/{nm}` (≤250 nm) | 1 req/s, non-commercial | **FAIL** |
+| Live traffic (fallback 2) | adsb.fi | `https://opendata.adsb.fi/api/v2/lat/{lat}/lon/{lon}/dist/{nm}` | 1 req/s, non-commercial, attribution + link required | **FAIL** |
+| Live traffic | ADSB One | `https://api.adsb.one/v2/point/...` | 1 req/s; repo archived Apr 2026 | **FAIL** |
+| Live traffic (avoid) | OpenSky | `/api/states/all` | 400 credits/day anon; auth = OAuth2 secret → violates C2 | **FAIL** |
+| Routes (dep/arr) | adsb.lol routeset | `POST /api/0/routeset` | Same as adsb.lol | **FAIL** (preflight) |
+| Airports | OurAirports CSV | Pre-processed at **build time** into `public/data/airports.json` | Public domain | N/A (build time) |
+| FIR/ARTCC boundaries | VATSpy data project | Build-time GeoJSON | CC BY-SA 4.0 (attribute) | N/A (build time) |
+| Weather (METAR/TAF) | aviationweather.gov Data API | `/api/data/metar?ids=...&format=json` | — | **FAIL** |
+| Aircraft photos | planespotters.net public API | `https://api.planespotters.net/pub/photos/hex/{hex}` | Photographer credit + link mandatory | **PASS** |
+| Basemap | OpenFreeMap `dark` vector style | `https://tiles.openfreemap.org/styles/dark` via `ol-mapbox-style` | No key, no limit; © OpenMapTiles © OSM | **PASS** |
+| Basemap (dropped) | CARTO Dark Matter | raster XYZ | **Now requires API key** — tiles show watermark | FAIL |
+
+**Consequence:** every live-traffic and weather source needs a CORS proxy. Per the rule below, decision pending with Cole (Cloudflare Worker in `/proxy`).
 
 Rules:
 - All v2 providers share the ADSBExchange v2 schema → **one normaliser** (`src/data/adsbV2.ts`) mapping to the internal `Aircraft` type. Provider-specific code lives only in `src/data/providers/*`.
@@ -141,7 +145,7 @@ CLAUDE.md  CREDITS.md  LICENSE  README.md
 | Type → icon + size map | `app/utils/icons.ts` (`aircraftIcons`, `getAircraftIcon()` alias switch) | `src/map/aircraftIcons.ts` | Port; swap input from VATSIM `flight_plan.aircraft_short` to ADS-B `t`; add fallback by ADS-B `category` (A1–A7, B*) when `t` missing |
 | Map bootstrap | `app/components/views/ViewMap.vue` | `src/map/MapView.vue` | Port structure, drop Navigraph/auth/SSR bits |
 | Feature rendering | `app/composables/render/*` | `src/map/layers/*` | Port pattern; use WebGL points for aircraft |
-| Basemap | `app/components/map/layers/MapLayer.vue` — self-hosted **Protomaps** vector tiles + `r2.vatsim-radar.com` raster | `src/map/basemap.ts` | Use Protomaps public PMTiles/API (domain-locked key is acceptable client-side) or CARTO Dark Matter. **Not** their R2 bucket |
+| Basemap | `app/components/map/layers/MapLayer.vue` — self-hosted **Protomaps** vector tiles + `r2.vatsim-radar.com` raster | `src/map/basemap.ts` | Use Protomaps public PMTiles/API (domain-locked key is acceptable client-side) or OpenFreeMap (current). **Not** their R2 bucket; CARTO now needs a key |
 | Map controls / overlays | `app/components/map/*` (`MapControls`, `MapScale`, `MapDistance`, `MapHtmlOverlay`) | `src/components/map/*` | Port UI, attribute |
 | UI kit | `app/components/ui/*` | `src/components/ui/*` | Port only components we use |
 | Stores | `app/store/{index,map,settings}.ts` | `src/stores/*` | Port shape; remove server/user state |

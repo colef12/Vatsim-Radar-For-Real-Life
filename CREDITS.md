@@ -18,7 +18,8 @@ _Add a row every time something else is ported (icons, components, logic)._
 
 ## Map
 
-- Basemap tiles: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, © [CARTO](https://carto.com/attributions)
+- Basemap: [OpenFreeMap](https://openfreemap.org/) — © [OpenMapTiles](https://www.openmaptiles.org/), data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors
+- Vector style rendering: [ol-mapbox-style](https://github.com/openlayers/ol-mapbox-style) (BSD-2-Clause)
 - Map library: [OpenLayers](https://openlayers.org/) (BSD-2-Clause)
 
 ## Fonts
