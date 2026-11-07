@@ -1,0 +1,30 @@
+name: NASR probe (temporary)
+on:
+  push:
+    branches: [scratch/nasr-probe]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          set -x
+          for c in 29_Oct_2026 01_Oct_2026; do
+            if curl -fsSL -o atc.zip "https://nfdc.faa.gov/webContent/28DaySub/extra/${c}_ATC_CSV.zip"; then echo "CYCLE=$c"; break; fi
+          done
+          curl -fsSL -o frq.zip "https://nfdc.faa.gov/webContent/28DaySub/extra/${c}_FRQ_CSV.zip"
+          curl -fsSL -o apt.zip "https://nfdc.faa.gov/webContent/28DaySub/extra/${c}_APT_CSV.zip"
+          ls -la; for z in atc frq apt; do mkdir $z; unzip -o -q $z.zip -d $z; done; find atc frq apt -type f | xargs ls -la
+      - run: |
+          for f in $(find atc frq -name '*.csv'); do echo "=== $f ($(wc -l < $f) lines)"; head -1 $f; grep -E '"(SLC|CLT|TYS|PVU|ATL|AGS)"' $f | head -12; done
+      - run: |
+          f=$(find apt -name 'APT_BASE.csv'); echo "=== $f"; head -1 $f; grep -E '"(SLC|PVU|TYS)"' $f | head -3
+          f=$(find frq -name '*.csv' | head -1); echo "=== distinct FREQ_USE-like col values"; python3 - "$f" <<'PY'
+          import csv,sys,collections
+          r=csv.DictReader(open(sys.argv[1],encoding='latin-1'))
+          cols=r.fieldnames; print(cols)
+          c=collections.Counter()
+          for row in r:
+            for k in cols:
+              if 'USE' in k.upper() or 'TYPE' in k.upper(): c[(k,row[k])]+=1
+          for (k,v),n in c.most_common(80): print(n,k,repr(v))
+          PY
