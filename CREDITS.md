@@ -51,5 +51,5 @@ Fetched through our Cloudflare Worker relay (`proxy/`); the active provider is c
 - [adsb.lol](https://adsb.lol): primary. Open data, ODbL.
 - [airplanes.live](https://airplanes.live): fallback. Non-commercial use.
 - [adsb.fi](https://adsb.fi): fallback. Personal, non-commercial use; attribution + link required.
-- Routes (dep/arr): [adsb.lol routeset](https://api.adsb.lol/docs), community-sourced, may be wrong.
+- Routes (dep/arr) and airline names: [adsbdb.com](https://www.adsbdb.com), community-sourced, may be wrong.
 - METAR (relay route ready, UI pending): [aviationweather.gov](https://aviationweather.gov) (NOAA, public domain).

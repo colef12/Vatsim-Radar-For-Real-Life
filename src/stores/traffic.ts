@@ -5,9 +5,37 @@ import type { PollerStatus } from '@/data/poller';
 import { PROXY_URL } from '@/config';
 
 export interface RouteInfo {
-  /** "KSLC-KATL" style, from adsb.lol routeset. */
-  airports: string | null;
-  plausible: boolean | null;
+  /** ICAO codes, e.g. ["KATL", "EGLL"] (a midpoint is included when adsbdb has one). */
+  airports: string[] | null;
+  airline: string | null;
+}
+
+/** adsbdb.com callsign lookup: free, CORS-enabled, called straight from the browser (tested 2026-11-06). */
+const ADSBDB = 'https://api.adsbdb.com/v0/callsign/';
+
+interface AdsbdbAirport {
+  icao_code?: string;
+}
+interface AdsbdbResponse {
+  response?:
+    | string
+    | {
+        flightroute?: {
+          airline?: { name?: string } | null;
+          origin?: AdsbdbAirport;
+          midpoint?: AdsbdbAirport | null;
+          destination?: AdsbdbAirport;
+        };
+      };
+}
+
+export function parseAdsbdbRoute(body: AdsbdbResponse): RouteInfo {
+  const fr = typeof body.response === 'object' ? body.response.flightroute : undefined;
+  if (!fr) return { airports: null, airline: null };
+  const airports = [fr.origin?.icao_code, fr.midpoint?.icao_code, fr.destination?.icao_code].filter(
+    (x): x is string => typeof x === 'string' && x.length > 0,
+  );
+  return { airports: airports.length >= 2 ? airports : null, airline: fr.airline?.name ?? null };
 }
 
 export const useTrafficStore = defineStore('traffic', () => {
@@ -33,33 +61,17 @@ export const useTrafficStore = defineStore('traffic', () => {
   }
 
   async function loadRoute(hex: string) {
-    const a = byHex.value.get(hex);
-    if (!a?.callsign || !PROXY_URL || routes.value[a.callsign]) return;
+    const cs = byHex.value.get(hex)?.callsign;
+    if (!cs || routes.value[cs]) return;
+    let info: RouteInfo = { airports: null, airline: null };
     try {
-      const res = await fetch(`${PROXY_URL.replace(/\/$/, '')}/routeset`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planes: [{ callsign: a.callsign, lat: a.lat, lng: a.lon }] }),
-      });
-      if (!res.ok) return;
-      const list = (await res.json()) as {
-        callsign?: string;
-        airport_codes?: string;
-        plausible?: boolean | number;
-      }[];
-      const r = Array.isArray(list)
-        ? list.find((x) => x.callsign?.trim().toUpperCase() === a.callsign)
-        : undefined;
-      routes.value = {
-        ...routes.value,
-        [a.callsign]: {
-          airports: r?.airport_codes && r.airport_codes !== 'unknown' ? r.airport_codes : null,
-          plausible: r?.plausible == null ? null : Boolean(r.plausible),
-        },
-      };
+      const res = await fetch(`${ADSBDB}${encodeURIComponent(cs)}`);
+      // 404 = unknown callsign (normal for GA / tail-number callsigns)
+      if (res.ok) info = parseAdsbdbRoute((await res.json()) as AdsbdbResponse);
     } catch {
       /* route is optional */
     }
+    routes.value = { ...routes.value, [cs]: info };
   }
 
   return { byHex, provider, status, dataTime, selectedHex, selected, routes, count, applySnapshot, select };
