@@ -98,7 +98,9 @@ CLAUDE.md  CREDITS.md  LICENSE  README.md
 
 ## 7. How I (Claude) work on this repo
 
-1. **Branch + PR.** Never commit to `main` directly after initial setup. Branch `feat/<thing>` / `fix/<thing>`; open a PR; Cole merges. Small focused commits.
+1. **Branch + PR, then always publish live.** Never commit to `main` directly. Branch `feat/<thing>` / `fix/<thing>`, open a PR, and **as soon as CI passes, Claude squash-merges it**. That deploys it to Pages. Don't wait for Cole (his instruction, 2026-11-06). Then open the live site in the built-in browser and confirm the change. Small focused commits.
+   - **Rollback:** `git revert <squash-sha>` on a `fix/revert-…` branch → PR → merge, which redeploys the previous state. For an instant rollback without a commit: Actions → "Deploy to GitHub Pages" → re-run the last good run.
+   - Still stop and ask before merging anything irreversible or outside this repo (Cloudflare deploys, secrets, repo settings).
 2. **When Cole will apply a change himself,** give exact minimal edits (file, line context, old → new). No full-file rewrites unless asked.
 3. **Every PR description** ends with a verdict table:
 
