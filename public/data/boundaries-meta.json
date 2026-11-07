@@ -1,0 +1,14 @@
+{
+  "builtAt": "2026-11-07T02:46:32.691Z",
+  "tracon": {
+    "source": "vatsimnetwork/simaware-tracon-project",
+    "version": "git:157ef4d",
+    "features": 1194
+  },
+  "fir": {
+    "source": "vatsimnetwork/vatspy-data-project",
+    "version": "git:bb34408",
+    "features": 1223
+  },
+  "license": "CC BY-SA 4.0"
+}

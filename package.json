@@ -13,7 +13,8 @@
     "typecheck": "vue-tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "data:boundaries": "node scripts/build-boundaries.mjs"
   },
   "dependencies": {
     "ol": "^10.11.0",

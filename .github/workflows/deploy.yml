@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # Weekly rebuild picks up new SimAware/VATSpy boundary releases. Mondays 07:17 UTC.
+  schedule:
+    - cron: '17 7 * * 1'
 
 permissions:
   contents: read
@@ -24,6 +27,11 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # Refresh boundary data from upstream; on any failure keep the committed copy in public/data.
+      - name: Refresh TRACON/FIR boundaries
+        run: npm run data:boundaries || echo "::warning::Boundary refresh failed — deploying committed public/data"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test

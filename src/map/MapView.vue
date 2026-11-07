@@ -5,6 +5,7 @@ import View from 'ol/View';
 import { fromLonLat, toLonLat } from 'ol/proj';
 import { defaults as defaultControls, ScaleLine } from 'ol/control';
 import { createBasemap } from './basemap';
+import { createFirLayer, createTraconLayer } from './layers/boundaries';
 import { useMapStore } from '@/stores/map';
 
 const store = useMapStore();
@@ -23,9 +24,11 @@ onMounted(() => {
 
   map.value = new OlMap({
     target: el.value,
-    layers: [createBasemap()],
+    layers: [createBasemap(), createFirLayer(), createTraconLayer()],
     view,
-    controls: defaultControls({ rotate: false }).extend([new ScaleLine({ units: 'nautical' })]),
+    controls: defaultControls({ rotate: false, attributionOptions: { collapsible: false } }).extend([
+      new ScaleLine({ units: 'nautical' }),
+    ]),
   });
 
   map.value.on('moveend', () => {
