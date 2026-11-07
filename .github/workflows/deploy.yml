@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-  # Weekly rebuild picks up new SimAware/VATSpy boundary releases. Mondays 07:17 UTC.
+  # Weekly rebuild picks up new SimAware/VATSpy boundaries and the FAA NASR cycle (28-day). Mondays 07:17 UTC.
   schedule:
     - cron: '17 7 * * 1'
 
@@ -32,6 +32,9 @@ jobs:
         run: npm run data:boundaries || echo "::warning::Boundary refresh failed — deploying committed public/data"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Refresh US towered airports (D/G/T/A + tower hours) from the current FAA NASR 28-day cycle.
+      - name: Refresh FAA airport data
+        run: npm run data:airports || echo "::warning::FAA NASR refresh failed — deploying committed public/data/airports-us.json"
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
