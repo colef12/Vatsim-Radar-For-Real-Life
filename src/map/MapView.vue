@@ -10,7 +10,6 @@ import { createAirportLayer } from './layers/airports';
 import { createAircraftLayer, setAircraftSelected } from './layers/aircraft';
 import { createTrailLayer } from './layers/trails';
 import { TrailStore } from '@/data/trails';
-import type { Aircraft } from '@/data/aircraft';
 import { attachBoundaryHover, type HoverInfo } from './interactions/boundaryHover';
 import { useMapStore } from '@/stores/map';
 import { useTrafficStore } from '@/stores/traffic';
@@ -48,7 +47,6 @@ onMounted(() => {
   disposeAircraft = aircraft.dispose;
   const trailStore = new TrailStore();
   const trails = createTrailLayer(trailStore);
-  let lastAircraft: Aircraft[] = [];
 
   map.value = new OlMap({
     target: el.value,
@@ -90,8 +88,7 @@ onMounted(() => {
       const now = Date.now();
       traffic.applySnapshot(snap);
       trailStore.add(snap.aircraft, now);
-      lastAircraft = snap.aircraft;
-      trails.update(snap.aircraft, traffic.selectedHex, now);
+      trails.update(traffic.selectedHex);
       aircraft.update(snap.aircraft, snap.provider);
     },
     (status) => (traffic.status = status),
@@ -110,7 +107,7 @@ onMounted(() => {
     () => traffic.selectedHex,
     (hex) => {
       if (setAircraftSelected(hex)) aircraft.redraw();
-      trails.update(lastAircraft, hex, Date.now());
+      trails.update(hex);
     },
   );
 
