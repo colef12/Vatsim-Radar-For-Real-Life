@@ -1,0 +1,8 @@
+# Cloudflare Worker: CORS relay for live traffic, routes and METARs. See proxy/README.md.
+name = "rwr-proxy"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+workers_dev = true
+
+[vars]
+ALLOWED_ORIGINS = "https://colef12.github.io,http://localhost:5173,http://localhost:4173"

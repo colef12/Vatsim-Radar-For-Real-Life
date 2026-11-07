@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TrafficStatus from './TrafficStatus.vue';
 const logo = `${import.meta.env.BASE_URL}favicon.svg`;
 </script>
 
@@ -9,6 +10,7 @@ const logo = `${import.meta.env.BASE_URL}favicon.svg`;
       <span>Radar</span>
       <span class="header__tag">Real-World</span>
     </div>
+    <TrafficStatus />
   </header>
 </template>
 
@@ -18,6 +20,7 @@ const logo = `${import.meta.env.BASE_URL}favicon.svg`;
   z-index: 2;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   height: 48px;
   padding: 0 16px;
   background: var(--bg-2);
