@@ -28,4 +28,4 @@ Automatic on push to `main` when `proxy/**` changes, via `.github/workflows/prox
 
 Manual alternative: `cd proxy && npx wrangler@4 login && npx wrangler@4 deploy`.
 
-The deployed URL (`https://rwr-proxy.<subdomain>.workers.dev`) goes in `src/config.ts` → `PROXY_URL`.
+Deployed URL: `https://rwr-proxy.coleferraro.workers.dev` (set in `src/config.ts` → `PROXY_URL`).
