@@ -1,0 +1,149 @@
+# CLAUDE.md — Vatsim-Radar-For-Real-Life
+
+Working instructions for Claude on this repo. Read fully before every task.
+
+## 1. Mission
+
+Recreate the look and core functionality of vatsim-radar.com, fed by **real-world ADS-B traffic** instead of VATSIM, hosted free on **GitHub Pages**.
+
+- Owner: Cole (`colef12`). Airline pilot, so aviation terms need no explaining. Be numerical and direct.
+- Repo: `colef12/Vatsim-Radar-For-Real-Life`
+- Live URL (once Pages is on): `https://colef12.github.io/Vatsim-Radar-For-Real-Life/`
+
+## 2. Hard constraints (non-negotiable)
+
+| # | Constraint | Consequence |
+|---|---|---|
+| C1 | GitHub Pages is **static hosting only** | No server, no DB, no secrets at runtime. All live data is fetched **from the browser**. |
+| C2 | No secrets in the client bundle | Anything shipped to Pages is public. Never put an API key, OAuth secret or token in source, `.env`, or Actions output that reaches `dist/`. |
+| C3 | Upstream vatsim-radar is **CC BY-NC 4.0** | Design/code may be adapted **only** with attribution, link to the license, a note of changes, and **non-commercial** use. Keep `CREDITS.md` current. No donations/ads/paywall on this site. |
+| C4 | ADS-B data providers are **non-commercial, rate-limited** | Respect each provider's limit (Section 4). Attribute every active source in the UI footer. |
+| C5 | `vite.config.ts` `base` must equal `/Vatsim-Radar-For-Real-Life/` | Wrong base = blank page on Pages. Case-sensitive. |
+| C6 | Not for operational use | Footer + About: "Not for navigation or ATC. Data is crowd-sourced and may be incomplete or delayed." |
+
+## 3. Stack (decided — change only with Cole's OK)
+
+| Layer | Choice | Why |
+|---|---|---|
+| Build | Vite + TypeScript (strict) | Static output, fast, trivial Pages deploy |
+| UI | Vue 3 (Composition API, `<script setup>`) + Pinia | Same framework family as vatsim-radar (Vue/Nuxt) so its patterns translate directly |
+| Map | OpenLayers (`ol`) | Same map lib as vatsim-radar; WebGL point layer scales to 10k+ aircraft |
+| Styles | SCSS with CSS variables | vatsim-radar's dark theme is variable-driven |
+| Tests | Vitest (unit) | Data normalisers and geo math must be tested |
+| Lint | ESLint + Prettier | CI gate |
+| Deploy | GitHub Actions → `actions/deploy-pages` | Pages source = "GitHub Actions", not a `gh-pages` branch |
+| Node | 22 LTS, pinned in `.nvmrc` and `engines` | |
+
+No Nuxt: SSR/Nitro features are useless on Pages and add config surface.
+
+## 4. Data sources
+
+Status column: **UNVERIFIED** until browser CORS + response checked in Phase 0. Update this table when verified.
+
+| Purpose | Source | Endpoint pattern | Limit | Status |
+|---|---|---|---|---|
+| Live traffic (primary) | adsb.lol | `https://api.adsb.lol/v2/point/{lat}/{lon}/{nm}` | Dynamic; no key today, key announced for future | UNVERIFIED |
+| Live traffic (fallback) | airplanes.live | `https://api.airplanes.live/v2/point/{lat}/{lon}/{nm}` (≤250 nm) | 1 req/s, non-commercial | UNVERIFIED |
+| Live traffic (fallback 2) | adsb.fi | `https://opendata.adsb.fi/api/v2/lat/{lat}/lon/{lon}/dist/{nm}` | 1 req/s, non-commercial, attribution + link required | UNVERIFIED |
+| Live traffic (avoid) | OpenSky | `/api/states/all` | 400 credits/day anon; auth is OAuth2 client-credentials = secret → violates C2 | REJECTED for client |
+| Routes (dep/arr) | adsb.lol routeset | `POST /api/0/routeset` | Same as above | UNVERIFIED |
+| Airports | OurAirports CSV | Pre-processed at **build time** into `public/data/airports.json` | Public domain | — |
+| FIR/ARTCC boundaries | VATSpy data project | Build-time GeoJSON | CC BY-SA 4.0 (attribute) | — |
+| Weather (METAR/TAF) | aviationweather.gov Data API | `/api/data/metar?ids=...` | Check CORS | UNVERIFIED |
+| Aircraft photos | planespotters.net public API | `/pub/photos/hex/{hex}` | Photographer credit + link mandatory | UNVERIFIED |
+| Basemap | CARTO dark / OSM | Raster XYZ | Attribution required | — |
+
+Rules:
+- All v2 providers share the ADSBExchange v2 schema → **one normaliser** (`src/data/adsbV2.ts`) mapping to the internal `Aircraft` type. Provider-specific code lives only in `src/data/providers/*`.
+- Poll **viewport-driven**: centre + radius from current map extent, capped at 250 nm. Default interval 5 s, never < 2 s. Pause when tab hidden (`document.visibilityState`).
+- On 429/5xx: exponential backoff (5→10→20→60 s), then fail over to next provider. Show a source/status pill in the UI.
+- If CORS blocks a provider: **stop and report to Cole**. Fix is a Cloudflare Worker proxy (free tier) in `/proxy`, deployed separately. Do not use public CORS proxies.
+- Never fetch from a GitHub Actions cron to "fake live" data — Actions cron minimum ~5 min and it burns Action minutes.
+
+## 5. Feature map (VATSIM → real world)
+
+| vatsim-radar feature | Real-world equivalent | Phase |
+|---|---|---|
+| Aircraft icons by type, rotated by heading | `t` (ICAO type) → icon family; `track` → rotation | 1 |
+| Hover label / click card (callsign, type, alt, GS, route) | `flight`, `t`, `r`, `alt_baro`, `gs`, `baro_rate`, `squawk` + routeset | 1 |
+| Flight track trail | Client-side ring buffer of last N positions per hex (no history API) | 2 |
+| Airports with traffic counts | OurAirports + count of aircraft within X nm below Y ft | 2 |
+| ATC controllers / sector fills | **No public real-world equivalent.** Show ARTCC/FIR boundaries only; never imply staffing | 3 |
+| METAR on airport click | aviationweather.gov | 3 |
+| Search (callsign/reg/hex/airport) | Local filter over current set + `/v2/callsign/`, `/v2/reg/`, `/v2/hex/` | 2 |
+| Filters (altitude, type, airline, ground/air) | Client-side | 2 |
+| Settings persisted | `localStorage`, wrapped in try/catch | 2 |
+| Emergency squawks highlight | 7500/7600/7700 → colour + list | 2 |
+
+## 6. Repo layout (target)
+
+```
+.github/workflows/deploy.yml   # build + test + deploy to Pages
+.github/workflows/ci.yml       # PR checks: lint, typecheck, test, build
+public/data/                   # build-time static datasets (airports, boundaries)
+scripts/                       # dataset build scripts (node, run in CI)
+src/
+  data/                        # types, normaliser, providers, poller
+  map/                         # OL map, layers, styles, icons
+  components/                  # Vue UI (panels, cards, search)
+  stores/                      # Pinia
+  styles/                      # SCSS vars mirrored from vatsim-radar theme
+CLAUDE.md  CREDITS.md  LICENSE  README.md
+```
+
+## 7. How I (Claude) work on this repo
+
+1. **Branch + PR.** Never commit to `main` directly after initial setup. Branch `feat/<thing>` / `fix/<thing>`; open a PR; Cole merges. Small focused commits.
+2. **When Cole will apply a change himself,** give exact minimal edits (file, line context, old → new). No full-file rewrites unless asked.
+3. **Every PR description** ends with a verdict table:
+
+   | Check | Result |
+   |---|---|
+   | `npm run lint` | PASS/FAIL |
+   | `npm run typecheck` | PASS/FAIL |
+   | `npm test` | PASS/FAIL (n tests) |
+   | `npm run build` | PASS/FAIL (bundle size kB gz) |
+   | Pages base path correct | PASS/FAIL |
+   | No secrets in diff | PASS/FAIL |
+   | Attribution updated (if new source/asset) | PASS/FAIL/N/A |
+
+4. **Verify, don't assume.** Provider limits, CORS, and endpoint shapes change; check before building on them and update Section 4.
+5. **Performance budget:** 5,000 aircraft rendered at ≥ 50 fps on a mid laptop; initial JS ≤ 300 kB gz; first map paint ≤ 2 s on cable.
+6. **Units:** altitude ft, speed kt, distance nm, vertical rate fpm, times Zulu. Display FL above 18,000 ft (US transition) as `FL350`.
+7. **Upstream assets:** see Section 9. Never hotlink vatsim-radar infrastructure (`r2.vatsim-radar.com`, their `/tiles.json`, their API) — copy what the license allows into this repo, host it ourselves.
+8. Keep this file current: when a decision changes, edit the relevant table in the same PR.
+
+## 8. Phases
+
+| Phase | Deliverable | Done when |
+|---|---|---|
+| 0 Setup | Vite/Vue/TS/OL scaffold, CI, Pages deploy, blank dark map live; CORS check on all Section 4 sources | Live URL loads map; Section 4 statuses filled |
+| 1 Live traffic | Poller + normaliser + WebGL aircraft layer + click card | Aircraft move live over KATL/KTYS area |
+| 2 Parity core | Trails, search, filters, airports, emergency squawks, settings | Feature table rows marked phase 2 all PASS |
+| 3 Context layers | Boundaries, METAR, photos, routes | |
+| 4 Polish | Mobile layout, keyboard shortcuts, perf tuning, About/credits | |
+
+## 9. Upstream reference — `VATSIM-Radar/vatsim-radar`
+
+- URL: https://github.com/VATSIM-Radar/vatsim-radar (default branch `next`)
+- Reference snapshot: commit `41130e1` (2026-11-04). Local read-only copy for lookups: `git clone --depth 1 --filter=blob:none --no-checkout` into a scratch dir **outside** this repo, then `git checkout HEAD -- <path>` for only the files needed.
+- License: **CC BY-NC 4.0** (whole repo, no per-asset exceptions found in README). Their own stack: Nuxt 4, Vue 3.5, OpenLayers 10.11, TS, Yarn 4, Nitro/Prisma/MariaDB backend.
+- Their agent notes worth honouring: `AGENTS.md`, `docs/ai/structure.md` (architecture map), `docs/ai/decisions.md` (invariants). Read the relevant section before porting a subsystem.
+
+### Where to look upstream → where it lands here
+
+| Concern | Upstream path | Our path | Port rule |
+|---|---|---|---|
+| Theme colours | `app/utils/colors.ts`, `app/scss/variables.scss`, `app/scss/colors` (generated) | `src/styles/_colors.scss`, `_variables.scss` | Copy values, attribute. Keys: bg `#131316`/`#18181B`/`#202024`, primary `#5987FF`, font LibreFranklin / RobotoMono / Jura |
+| Breakpoints | `variables.scss` mixins `mobile` ≤1365, `mobileOnly` ≤699, `pc` ≥1466 | same mixins | Copy |
+| Fonts | `app/assets/fonts/{libre-franklin,roboto-mono,jura}` | `src/assets/fonts` | Libre Franklin + Jura = OFL, Roboto Mono = Apache-2.0 (verify on Google Fonts when adding); load from Google Fonts or self-host the woff2 subset only |
+| Aircraft icons | `app/assets/icons/aircraft/*.svg` (293 files, keyed by lowercase ICAO type) | `src/assets/icons/aircraft/` | **Direct fit:** ADS-B `t` field is the ICAO type, same key. Copy with attribution |
+| Type → icon + size map | `app/utils/icons.ts` (`aircraftIcons`, `getAircraftIcon()` alias switch) | `src/map/aircraftIcons.ts` | Port; swap input from VATSIM `flight_plan.aircraft_short` to ADS-B `t`; add fallback by ADS-B `category` (A1–A7, B*) when `t` missing |
+| Map bootstrap | `app/components/views/ViewMap.vue` | `src/map/MapView.vue` | Port structure, drop Navigraph/auth/SSR bits |
+| Feature rendering | `app/composables/render/*` | `src/map/layers/*` | Port pattern; use WebGL points for aircraft |
+| Basemap | `app/components/map/layers/MapLayer.vue` — self-hosted **Protomaps** vector tiles + `r2.vatsim-radar.com` raster | `src/map/basemap.ts` | Use Protomaps public PMTiles/API (domain-locked key is acceptable client-side) or CARTO Dark Matter. **Not** their R2 bucket |
+| Map controls / overlays | `app/components/map/*` (`MapControls`, `MapScale`, `MapDistance`, `MapHtmlOverlay`) | `src/components/map/*` | Port UI, attribute |
+| UI kit | `app/components/ui/*` | `src/components/ui/*` | Port only components we use |
+| Stores | `app/store/{index,map,settings}.ts` | `src/stores/*` | Port shape; remove server/user state |
+
+Not portable (server-dependent or VATSIM-only): Navigraph layers, bookings, events, stats, achievements, user auth, sector/ATC staffing logic, Nitro API routes.
